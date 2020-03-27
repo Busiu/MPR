@@ -14,11 +14,6 @@ int main(int argc, char** argv) {
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    if (world_size <= 1) {
-        printf("World size must be greater than 1!\n");
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
     long long no_points_per_core = atoll(argv[1]);
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -40,8 +35,7 @@ int main(int argc, char** argv) {
 
     if (world_rank == 0) {
         double PI = 4.0 * points_inside / (no_points_per_core * world_size);
-        printf("Time: %lf\n", end - start);
-        printf("%lf\n", PI);
+        printf("%lf\n", end - start);
     }
 
     MPI_Finalize();
