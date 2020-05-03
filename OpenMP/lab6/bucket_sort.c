@@ -1,6 +1,13 @@
 //
 // Created by Busiu on 28.04.2020.
 //
+/*
+ * To compile: gcc -Wall bucket_sort.c -o bucket_sort -fopenmp -std=c99
+ *
+ * To execute: ./bucket_sort no_elements no_threads no_buckets max_element
+ * For instance: ./bucket_sort 10000000 4 100 5000
+ */
+
 #define _XOPEN_SOURCE
 
 #include <omp.h>
