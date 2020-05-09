@@ -2,6 +2,8 @@
 // Created by Busiu on 28.04.2020.
 //
 /*
+ * This is the implementation of the algorithm no. 2
+ *
  * To compile: gcc -Wall bucket_sort.c -o bucket_sort -fopenmp -std=c99
  *
  * To execute: ./bucket_sort no_elements no_threads no_buckets max_element
@@ -24,6 +26,18 @@ struct Bucket {
 void print_array(const int* array, const int array_size) {
     for (int i = 0; i < array_size; i++)
         printf("%i\n", array[i]);
+}
+
+void print_max_min_bucket(struct Bucket* buckets, const int no_buckets) {
+    int max = 0;
+    int min = 1000000;
+    for(int i = 0; i < no_buckets; i++) {
+        if (buckets[i].count > max)
+            max = buckets[i].count;
+        else if (buckets[i].count < min)
+            min = buckets[i].count;
+    }
+    printf("Min bucket: %d, Max bucket: %d\n", min, max);
 }
 
 bool is_sorted(const int* array, const int array_size) {
@@ -64,7 +78,7 @@ double array_filler(int* array, const int array_size, const int max_element) {
 
 double bucket_inserter(const int* array, const int array_size, struct Bucket* buckets, const double bucket_size, omp_lock_t* bucket_locks) {
     double start_time = omp_get_wtime();
-#pragma omp parallel for shared(array, buckets)
+    #pragma omp parallel for shared(array, buckets)
     for (int i = 0; i < array_size; i++) {
         int number = array[i];
         int bucket_index = (int) (number / bucket_size);
@@ -111,23 +125,16 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    int no_elements = atoi(argv[1]);
-    int no_threads = atoi(argv[2]);
-    int no_buckets = atoi(argv[3]);
-    int max_element = atoi(argv[4]);
-    double bucket_size = (double) max_element / (double) no_buckets;
-    int* array = malloc(no_elements * sizeof(int));
-
-    struct Bucket* buckets = malloc(no_buckets * sizeof(struct Bucket));
-    omp_lock_t* bucket_locks = malloc(no_buckets * sizeof(omp_lock_t));
-    for (int i = 0; i < no_buckets; i++) {
-        buckets[i].count = 0;
-        buckets[i].values = malloc(no_elements * sizeof(int));
-        omp_init_lock(&bucket_locks[i]);
-    }
-    int* start_inserting_indexes = malloc(no_buckets * sizeof(int));
+    int no_elements = atoi(argv[1]);    // number of elements
+    int no_threads = atoi(argv[2]);     // number of threads
+    int no_buckets = atoi(argv[3]);     // number of buckets
+    int max_element = atoi(argv[4]);    // value of a maximum element possible + 1
+    double bucket_range = (double) max_element / (double) no_buckets;   // range of buckets
+    int* array = malloc(no_elements * sizeof(int));     // our array of numbers
 
     double start_entire_time;
+    double pause_time;
+    double continue_time;
     double time_taken;
 
     omp_set_num_threads(no_threads);
@@ -135,20 +142,43 @@ int main(int argc, char** argv) {
     start_entire_time = omp_get_wtime();
 
     time_taken = array_filler(array, no_elements, max_element);
-    printf("Filling array time taken: %lf\n", time_taken);
+    printf("Filling array time taken: %lf [s]\n", time_taken);
 
-    time_taken = bucket_inserter(array, no_elements, buckets, bucket_size, bucket_locks);
-    printf("Inserting into buckets time taken: %lf\n", time_taken);
+    pause_time = omp_get_wtime();
+
+    // Bucket initialization. We do not want to measure time taken during this process, because it is memory allocation
+    struct Bucket* buckets = malloc(no_buckets * sizeof(struct Bucket));    // buckets
+    omp_lock_t* bucket_locks = malloc(no_buckets * sizeof(omp_lock_t));     // locks for buckets
+    int* bucket_sizes = calloc(no_buckets, sizeof(int));                    // array with maximum size of each bucket
+    for(int i = 0; i < no_elements; i++) {
+        int bucket_index = (int) (array[i] / bucket_range);
+        bucket_sizes[bucket_index]++;
+    }
+    for (int i = 0; i < no_buckets; i++) {
+        buckets[i].count = 0;
+        buckets[i].values = malloc(bucket_sizes[i] * sizeof(int));
+        omp_init_lock(&bucket_locks[i]);
+    }
+
+    int* start_inserting_indexes = malloc(no_buckets * sizeof(int));        // offset of buckets (from which index we
+                                                                            // should start inserting our bucket
+                                                                            // into array after sorting
+
+    continue_time = omp_get_wtime();
+
+    time_taken = bucket_inserter(array, no_elements, buckets, bucket_range, bucket_locks);
+    printf("Inserting into buckets time taken: %lf [s]\n", time_taken);
 
     time_taken = bucket_sorter(buckets, no_buckets);
-    printf("Sorting buckets time taken: %lf\n", time_taken);
+    printf("Sorting buckets time taken: %lf [s]\n", time_taken);
 
     time_taken = array_inserter(array, buckets, no_buckets, start_inserting_indexes);
-    printf("Inserting into array time taken: %lf\n", time_taken);
+    printf("Inserting into array time taken: %lf [s]\n", time_taken);
 
-    printf("Entire process took: %lf\n", omp_get_wtime() - start_entire_time);
+    printf("Entire process took: %lf [s]\n", omp_get_wtime() - continue_time + pause_time - start_entire_time);
 
     //print_array(array, no_elements);
+    //print_max_min_bucket(buckets, no_buckets);
 
     if (is_sorted(array, no_elements))
         printf("Array is sorted\n");
